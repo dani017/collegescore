@@ -1,3 +1,11 @@
+import {
+  getRequest,
+  getCollegesFromDatabase2,
+  getCollegeSuggestions,
+  getCollegeRatings,
+  getTopColleges
+} from './api.js';
+
 /*
  * College Inclusiveness Search Team
  * February 2025
@@ -15,7 +23,7 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
 (async function() {
   window.addEventListener("load", init);
 
-  let collegesOrig;
+  //let collegesOrig;
   let colleges;
   let currentIndexes = [0, 1, 2];
   let nameToRating = {};
@@ -32,12 +40,12 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
         alertModal.classList.add("hidden");
     };
 
-    collegesOrig = getCollegesFromDatabase();
+    //collegesOrig = getCollegesFromDatabase();
     colleges = await getCollegesFromDatabase2();
 
     // debug
     console.log(colleges);
-    console.log(collegesOrig);
+    //console.log(collegesOrig);
 
     //await displayInitialColleges();
     //setInterval(rotateColleges, 7000);
@@ -322,45 +330,7 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
     if (num === null || num === undefined || isNaN(num)) return null;
     num = (Math.round(num * 100) / 100).toFixed(1);
     return Number(num);
-}
-
-  // TO DO: get the full list pf colleges on the database
-  function getCollegesFromDatabase() {
-    const colleges = [
-      { name: "university A", accommodations: ["Accessible Campus", "Queer-friendly"], location: "CA"},
-      { name: "university B", accommodations: ["Sign Language Interpreter"], location: "CA" },
-      { name: "university C", accommodations: ["Accessible Campus", "Sign Language Interpreter"], location: "WA" }, 
-      { name: "university D", accommodations: ["Accessible Campus", "Queer-friendly"], location:"OR" },
-      { name: "university E", accommodations: ["Sign Language Interpreter"], location:"WA" },
-      { name: "university F", accommodations: ["Accessible Campus", "Sign Language Interpreter"], location: "WA" }
-    ];
-    return colleges; 
   }
-
-  async function getCollegesFromDatabase2() {
-    try {
-        let res = await fetch("/colleges");
-        await statusCheck(res);
-        res = await res.json();
-
-        for (let i = 0; i < res.length; i++) {
-            res[i]["accommodations"] = JSON.parse(res[i]["accommodations"]);
-            try {
-                res[i]["resources"] = JSON.parse(res[i]["resources"]);
-            } catch (e) {
-                console.warn("Malformed JSON in resources:", res[i]["resources"]);
-                res[i]["resources"] = [];
-            }
-        }
-
-        return res;
-    } catch (err) {
-        console.error("Error fetching colleges:", err);
-        return [];
-    }
-}
-
-
 
   function id(name) {
     return document.getElementById(name);
@@ -380,65 +350,7 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
     id(view).classList.remove("hidden");
   }
 
-  /**
-   * returns result of GET request with extractFunc being
-   * either res => res.json() or res => res.text()
-   * @param {string} url - URL to fetch
-   * @param {function} extractFunc - res => res.json() or res => res.text()
-   * @returns {object | string | undefined} - res.json(), res.text(), or undefined
-   */
-  async function getRequest(url, extractFunc) {
-    try {
-      let res = await fetch(url);
-      await statusCheck(res);
-      res = await extractFunc(res);
-      return res;
-    } catch (err) {
-      handleError();
-    }
-  }
-
-  /**
-   * returns result of POST request with extractFunc being
-   * either res => res.json() or res => res.text()
-   * @param {string} url - URL to fetch
-   * @param {object} body - body of POST request
-   * @param {function} extractFunc - res => res.json() or res => res.text()
-   * @returns {object | string | undefined} - res.json(), res.text(), or undefined
-   */
-  async function postRequest(url, body, extractFunc) {
-    try {
-      let res = await fetch(url, {
-        method: "POST",
-        body: body
-      });
-      await statusCheck(res);
-      res = await extractFunc(res);
-      return res;
-    } catch (err) {
-      handleError();
-    }
-  }
-
-  /**
-   * Handles errors gracefully
-   */
-  function handleError() {
-  }
-
-  /**
-   * If res does not have an ok HTML response code, throws an error.
-   * Returns the argument res.
-   * @param {object} res - HTML result
-   * @returns {object} -  same res passed in
-   */
-  async function statusCheck(res) {
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
-    return res;
-  }
-
+  
   /**
    * Returns the element that has the ID attribute with the specified value.
    * @param {string} name - element ID.

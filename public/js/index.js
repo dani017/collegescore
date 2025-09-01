@@ -5,6 +5,8 @@
 
 "use strict";
 
+import { getRequest } from './api.js';
+
 (function() {
   window.addEventListener("load", init);
 
@@ -61,65 +63,6 @@
     id(view).classList.remove("hidden");
   }
 
-  /**
-   * returns result of GET request with extractFunc being
-   * either res => res.json() or res => res.text()
-   * @param {string} url - URL to fetch
-   * @param {function} extractFunc - res => res.json() or res => res.text()
-   * @returns {object | string | undefined} - res.json(), res.text(), or undefined
-   */
-  async function getRequest(url, extractFunc) {
-    try {
-      let res = await fetch(url);
-      await statusCheck(res);
-      res = await extractFunc(res);
-      return res;
-    } catch (err) {
-      handleError();
-    }
-  }
-
-  /**
-   * returns result of POST request with extractFunc being
-   * either res => res.json() or res => res.text()
-   * @param {string} url - URL to fetch
-   * @param {object} body - body of POST request
-   * @param {function} extractFunc - res => res.json() or res => res.text()
-   * @returns {object | string | undefined} - res.json(), res.text(), or undefined
-   */
-  async function postRequest(url, body, extractFunc) {
-    try {
-      let res = await fetch(url, {
-        method: "POST",
-        body: body
-      });
-      await statusCheck(res);
-      res = await extractFunc(res);
-      return res;
-    } catch (err) {
-      handleError();
-    }
-  }
-
-  /**
-   * Handles errors gracefully
-   */
-  function handleError() {
-
-  }
-
-  /**
-   * If res does not have an ok HTML response code, throws an error.
-   * Returns the argument res.
-   * @param {object} res - HTML result
-   * @returns {object} -  same res passed in
-   */
-  async function statusCheck(res) {
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
-    return res;
-  }
 
   /**
    * Returns the element that has the ID attribute with the specified value.

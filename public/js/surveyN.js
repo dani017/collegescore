@@ -7,6 +7,8 @@
  * Questions & Responces
  */
 
+import { submitSurveyResponse } from './api.js';
+
 document.addEventListener("DOMContentLoaded", initSurvey);
 
 /**DOM render and event handling*/
@@ -129,7 +131,7 @@ function submitSurvey(surveyContainer, collegeName){
           jsonData[key] = value;
       }
     });
-    postRequest(`/submit-response/${encodeURIComponent(collegeName)}`, JSON.stringify(jsonData), res => res.text());
+    submitSurveyResponse(collegeName, jsonData);
     window.open(`/college.html?name=${encodeURIComponent(collegeName)}`); //returns to college page where review was left
 }
 
@@ -459,42 +461,3 @@ const questions = [
         text: "Were there any community groups or classes you would like to share with prospective students? Please list them.",
         category:"general"},
 ];
-
-/*-----------HELPER FUNCTIONS-----------*/
-
- /**
-   * If res does not have an ok HTML response code, throws an error.
-   * Returns the argument res.
-   * @param {object} res - HTML result
-   * @returns {object} -  same res passed in
-   */
-  async function statusCheck(res) {
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
-    return res;
-  }
-
-  /**
-   * returns result of POST request with extractFunc being
-   * either res => res.json() or res => res.text()
-   * @param {string} url - URL to fetch
-   * @param {object} body - body of POST request
-   * @param {function} extractFunc - res => res.json() or res => res.text()
-   * @returns {object | string | undefined} - res.json(), res.text(), or undefined
-   */
-  async function postRequest(url, body, extractFunc) {
-    try {
-      let res = await fetch(url, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: body
-      });
-      await statusCheck(res);
-      res = await extractFunc(res);
-      console.log("Post response: ", res);
-      return res;
-    } catch (err) {
-      console.error("Post error:" ,err);
-    }
-  }
