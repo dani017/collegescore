@@ -46,6 +46,9 @@ CREATE TABLE "Reviews" (
 CREATE TABLE "Responses"(
 	"id"						INTEGER NOT NULL,
 	"college_name"				TEXT,
+	"college_attended"			TEXT,
+	"college_attendance_year_start"	INTEGER,
+	"college_attendance_year_end"	INTEGER,
 	"lgbt_id"					TEXT,
 	"poc_id"					TEXT,
 	"disability_id"				TEXT,

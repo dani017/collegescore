@@ -13,6 +13,15 @@
     <link rel="stylesheet" href="filter.css">
 </head>
 <body>
+  <div id="custom-alert" class="custom-alert-overlay hidden" role="alertdialog" aria-modal="true">
+    <div class="custom-alert-box">
+      <p>
+        Filters are based off of survey responses.<br>
+        This feature is still under construction and in the data collection phase.
+      </p>
+      <button id="close-alert-btn" class="btn">OK</button>
+    </div>
+  </div>
   <nav id="nav-bar" role="navigation" aria-label="Main Navigation">
     <div id="title">
       <h1>College Score</h1>
@@ -92,7 +101,7 @@
             <button id="clear-filters-btn">Clear All Filters</button>
             <br/>
             <br/>
-
+            <!---
             <fieldset>
             <legend>Filter by Accommodations</legend>
             <label><input type="checkbox" class="filter-option" value="Accessible Campus"> Accessible Campus</label>
@@ -102,16 +111,21 @@
             <label><input type="checkbox" class="filter-option" value="Accessible Parking"> Accessible Parking</label>
             <label><input type="checkbox" class="filter-option" value="Calm Exam Spaces"> Calm Exam Spaces</label>
             <label><input type="checkbox" class="filter-option" value="Reliable Accommodations"> Reliable Accommodations</label>
-          </fieldset>
+          </fieldset>-->
           <br />
           <fieldset>
-            <legend>Filter by Identity</legend>
-            <label><input type="checkbox" class="filter-option" value="dcc"> Disability Cultural Center</label>
+            <legend>Filter by Colleges with ... </legend>
+            <label><input type="checkbox" class="filter-option" value="dcc"> A Disability Cultural Center</label>
+            <label><input type="checkbox" class="filter-option" value="safety"> The highest Safety Ratings</label>
+            <label><input type="checkbox" class="filter-option" value="inclusivity"> The highest Inclusivity Ratings</label>
+            <label><input type="checkbox" class="filter-option" value="accessibility"> The highest Accessibility Ratings</label>
+            <!--
             <label><input type="checkbox" class="filter-option" value="Queer-friendly"> Queer-friendly</label>
             <label><input type="checkbox" class="filter-option" value="Neurodivergent-friendly"> Neurodivergent-friendly</label>
             <label><input type="checkbox" class="filter-option" value="Religion-inclusive"> Religion-inclusive</label>
             <label><input type="checkbox" class="filter-option" value="BIPOC-inclusive"> BIPOC-inclusive</label>
             <label><input type="checkbox" class="filter-option" value="Disability-friendly"> Disability-friendly</label>
+          -->
           </fieldset>
         </aside>
 
@@ -125,22 +139,7 @@
           </div>
 
 
-          <section id="college-carousel" class="college-carousel" aria-live="polite">
-
-            <!--Left card, not focused--> 
-            <div class="college-card small" id="left-card" tabindex="-1" role="article" 
-              aria-label="College preview left" aria-hidden="true">
-            </div>
-            <!--Center card, focused-->
-            <div class="college-card large" id="center-card" tabindex="0" role="article" aria-label="Main college preview"></div>
-            
-            <!--Right card, not focused--> 
-            <div class="college-card small" id="right-card" tabindex="-1" role="article" 
-              aria-label="College preview right" aria-hidden="true">
-            </div>
-          </section>
-
-          <div id="results" class="hidden college-grid">
+          <div id="results" class="college-grid">
       </div>
 
 

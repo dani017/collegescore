@@ -34,7 +34,16 @@ app.use(multer().none()); // requires the "multer" module
 //Returns an array of all college information, ordered alphabetically by name (capstone code)
 app.get('/colleges', async function(req, res) {
   try {
-    let query = "SELECT * FROM Colleges ORDER BY name";
+    let query = `
+      SELECT *
+      FROM Colleges
+      ORDER BY
+        (CASE
+          WHEN LOWER(name) LIKE '%university%' OR LOWER(name) LIKE '%college%' THEN 1
+          ELSE 0
+        END) DESC,
+        name ASC
+    `;
     let rows = await runSQLQuery(db => db.all(query));
     res.json(rows);
   } catch (err) {
@@ -123,15 +132,83 @@ app.get('/access-avgs/:college', async function(req, res) {
     let query = `SELECT AVG(disability_safety) AS safety_avg, 
                 (AVG(disability_inclusion) + AVG(disability_bias))/2 AS inclusion_avg, 
                 (AVG(disability_accessibility) + AVG(disability_peer) + AVG(disability_inst))/3 AS access_avg 
-                FROM Responses WHERE college_name = ? AND disability_id="yes"
+                FROM Responses WHERE LOWER(TRIM(college_name)) = LOWER(TRIM(?)) 
                 `; 
     let rows = await runSQLQuery(db => db.get(query, college));
-    res.json(rows) //match found
+    res.json(rows)
   } catch (err) {
     res.status(SERVER_ERROR).type("text");
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
+
+// Top N schools by highest accessibility rating
+app.get('/top-access', async function(req, res) {
+  try {
+    let query = `
+      SELECT r.college_name, c.location,
+             AVG(r.disability_safety) AS safety_avg, 
+             (AVG(r.disability_inclusion) + AVG(r.disability_bias))/2 AS inclusion_avg, 
+             (AVG(r.disability_accessibility) + AVG(r.disability_peer) + AVG(r.disability_inst))/3 AS access_avg 
+      FROM Responses r
+      JOIN Colleges c ON LOWER(TRIM(r.college_name)) = LOWER(TRIM(c.name))
+      GROUP BY r.college_name
+      ORDER BY access_avg DESC
+      LIMIT 100
+    `;
+    let rows = await runSQLQuery(db => db.all(query));
+    res.json(rows);
+  } catch (err) {
+    res.status(SERVER_ERROR).type("text");
+    res.send(SERVER_ERROR_MSG + ": " + err);
+  }
+});
+
+// Top N schools by highest inclusion rating
+app.get('/top-inclusion', async function(req, res) {
+  try {
+    let query = `
+      SELECT r.college_name, c.location,
+             AVG(r.disability_safety) AS safety_avg, 
+             (AVG(r.disability_inclusion) + AVG(r.disability_bias))/2 AS inclusion_avg, 
+             (AVG(r.disability_accessibility) + AVG(r.disability_peer) + AVG(r.disability_inst))/3 AS access_avg 
+      FROM Responses r
+      JOIN Colleges c ON LOWER(TRIM(r.college_name)) = LOWER(TRIM(c.name))
+      GROUP BY r.college_name
+      ORDER BY inclusion_avg DESC
+      LIMIT 100
+    `;
+    let rows = await runSQLQuery(db => db.all(query));
+    res.json(rows);
+  } catch (err) {
+    res.status(SERVER_ERROR).type("text");
+    res.send(SERVER_ERROR_MSG + ": " + err);
+  }
+});
+
+// Top N schools by highest accessibility rating
+app.get('/top-safety', async function(req, res) {
+  try {
+    let query = `
+      SELECT r.college_name, c.location,
+             AVG(r.disability_safety) AS safety_avg, 
+             (AVG(r.disability_inclusion) + AVG(r.disability_bias))/2 AS inclusion_avg, 
+             (AVG(r.disability_accessibility) + AVG(r.disability_peer) + AVG(r.disability_inst))/3 AS access_avg 
+      FROM Responses r
+      JOIN Colleges c ON LOWER(TRIM(r.college_name)) = LOWER(TRIM(c.name))
+      GROUP BY r.college_name
+      ORDER BY safety_avg DESC
+      LIMIT 100
+    `;
+    let rows = await runSQLQuery(db => db.all(query));
+    res.json(rows);
+  } catch (err) {
+    res.status(SERVER_ERROR).type("text");
+    res.send(SERVER_ERROR_MSG + ": " + err);
+  }
+});
+
+
 
 //Return demographics 
 //Do not start using this data until a college has over 50 responses, 
@@ -166,6 +243,9 @@ app.post('/submit-response/:college', async function(req, res){
     console.log("Recived survey data: ", req.body);
     let{
       college_name,
+      college_attended = null,
+      attendance_years_start = null,
+      attendance_years_end = null,
       lgbt_id = null,
       poc_id = null,
       disability_id = null,
@@ -198,6 +278,7 @@ app.post('/submit-response/:college', async function(req, res){
     let query = "INSERT INTO Responses"
               //intro
               + "(college_name,"
+              + " college_attended, attendance_years_start, attendance_years_end," // <-- add here
               + " lgbt_id, poc_id, disability_id,"
               + " optin, share_id,"
               //lgbt
@@ -217,6 +298,7 @@ app.post('/submit-response/:college', async function(req, res){
               + " written_rev, written_experience,"
               + " written_challenges, written_recs)"
               + " VALUES(?, ?, ?, ?, ?, ?," //intro
+                      + "?, ?, ?," //attendance
                       + "?, ?, ?, ?, ?, ?,"//lgbt
                       + "?, ?, ?, ?, ?, ?,"//poc
                       + "?, ?, ?, ?, ?, ?, ?, ?,"//disability
@@ -225,6 +307,7 @@ app.post('/submit-response/:college', async function(req, res){
     //map req.body values defined above to columns they add to 
     await runSQLQuery(db => db.run(query, [
               college_name,
+              college_attended, attendance_years_start, attendance_years_end, // <-- add here
               lgbt_id, poc_id, disability_id,
               optin, share_id,
               //lgbt
@@ -248,6 +331,63 @@ app.post('/submit-response/:college', async function(req, res){
   }catch (err){
     res.status(SERVER_ERROR).type("text");
     console.error("Database insert error:", err);
+    res.send(SERVER_ERROR_MSG + ": " + err);
+  }
+});
+
+//Returns all survey responses for a University (capstone code)
+app.get('/all-responses/:college', async function(req, res) {
+  try {
+    let college = req.params["college"];
+    let query = `
+      SELECT 
+        written_rev,
+        written_experience,
+        written_challenges,
+        written_recs,
+        disability_safety AS safety_score,
+        (disability_inclusion + disability_bias) / 2.0 AS inclusivity_avg,
+        (disability_accessibility + disability_peer + disability_inst) / 3.0 AS accessibility_avg,
+        (
+          disability_safety
+          + ((disability_inclusion + disability_bias) / 2.0)
+          + ((disability_accessibility + disability_peer + disability_inst) / 3.0)
+        ) / 3.0 AS overall_score
+      FROM Responses
+      WHERE college_name = ?
+    `;
+    let rows = await runSQLQuery(db => db.all(query, college));
+    if (rows && rows.length > 0) {
+      res.json(rows); // match found
+    } else {
+      res.json(null); // no responses
+    }
+  } catch (err) {
+    res.status(SERVER_ERROR).type("text");
+    res.send(SERVER_ERROR_MSG + ": " + err);
+  }
+});
+
+
+//Returns all the averaged ratings from Reviews table for a given university (capstone code)
+app.get('/resp-rating-avgs/:college', async function(req, res) {
+  try {
+    let college = req.params["college"];
+    let query = `
+      SELECT AVG(disability_safety) AS safety_avg,
+             (AVG(disability_inclusion) + AVG(disability_bias)) / 2 AS inclusivity_avg,
+             (AVG(disability_accessibility) + AVG(disability_peer) + AVG(disability_inst)) / 3 AS accessibility_avg,
+             (
+               AVG(disability_safety)
+               + ((AVG(disability_inclusion) + AVG(disability_bias)) / 2)
+               + ((AVG(disability_accessibility) + AVG(disability_peer) + AVG(disability_inst)) / 3)
+             ) / 3 AS overall_avg
+      FROM Responses WHERE college_name = ?
+    `;
+    let rows = await runSQLQuery(db => db.get(query, college));
+    res.json(rows);
+  } catch (err) {
+    res.status(SERVER_ERROR).type("text");
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
@@ -639,15 +779,6 @@ app.get('/overallIdentity-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-
-
-
-
-
-
-
-
 
 
 /** EXAMPLE GET/POST requests belows, NOT for our use!! */

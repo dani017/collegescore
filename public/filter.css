@@ -257,3 +257,29 @@ main {
   font-size: 16px;
   padding: 10px;
 }
+
+/* Custom Alert Styles */
+.custom-alert-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-alert-box {
+  background: #fff;
+  padding: 32px 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+  max-width: 90vw;
+  width: 400px;
+  text-align: center;
+  font-size: 1.1em;
+}
+
+.custom-alert-overlay.hidden {
+  display: none;
+}

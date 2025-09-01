@@ -25,7 +25,7 @@
 
     const urlParams = new URLSearchParams(window.location.search);
     collegeName = urlParams.get("name");
-    qs("#college-name a").textContent = collegeName;
+    qs("#college-name").textContent = collegeName;
 
     /**
     let fakeData ={
@@ -95,10 +95,8 @@
 `
 <div class="rating-header" aria-label="student review:">
     <div class="Overall-section">
-      <h4>Overall Accessibility</h4>
-      <span id="bubble" tabindex="0" class="rating-score ${getColor(rev.overallAccess_rating)}">${rev.overallAccess_rating}</span>
-      <h4>Overall Identity</h4>
-      <span class="rating-score ${getColor(rev.overallIdentity_rating)}">${rev.overallIdentity_rating}</span>
+      <h4>Overall</h4>
+      <span id="bubble" tabindex="0" class="rating-score ${getColor(rev.overall_score)}">${rev.overall_score}</span>
     </div>
     <div class="review-text">
       <h4 >General Review</h4>
@@ -108,48 +106,16 @@
     </div>
   </div>
   <div class="rating-category">
-    <p  >LGBTQ+ Friendliness: ${rev.lgbtq_safety} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.lgbtq_safety)}"></div>
+    <p  >Safety: ${rev.safety_score} out of 5</p>
+    <div class="rating-bar ${barStyle(rev.safety_score)}"></div>
   </div>
   <div class="rating-category">
-    <p  >Liberal Climate: ${rev.liberal_rating} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.liberal_rating)}"></div>
+    <p  >Inclusivity: ${rev.inclusivity_avg} out of 5</p>
+    <div class="rating-bar ${barStyle(rev.inclusivity_avg)}"></div>
   </div>
   <div class="rating-category">
-    <p >Accommodation Friendliness: ${rev.accommodation_rating} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.accommodation_rating)}"></div>
-  </div>
-  <div class="rating-category">
-    <p >Accommodation Difficulty: ${rev.accommodations_difficulty} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.accommodations_difficulty)}"></div>
-  </div>
-  <div class="rating-category">
-    <p  >Accommodation Reliability: ${rev.reliability_rating} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.reliability_rating)}"></div>
-  </div>
-  <div class="rating-category">
-    <p  >Peer Support: ${rev.supportive_rating} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.supportive_rating)}"></div>
-  </div>
-  <div class="rating-category">
-    <p  >Indoor Campus Accessibility: ${rev.inside_accessibility} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.inside_accessibility)}"></div>
-  </div>
-  <div class="rating-category">
-    <p  >Outdoor Campus Accessibility: ${rev.outside_rating} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.outside_rating)}"></div>
-  </div>
-  <div class="rating-category">
-    <p >Cultural & Racial Diversity: ${rev.diversity_rating} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.diversity_rating)}"></div>
-  </div>
-  <div class="rating-category">
-    <p >Religious Tolerance: ${rev.tolerance_rating} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.tolerance_rating)}"></div>
-  </div>
-  <div class="rating-category">
-    <p >Club Inclusivity: ${rev.clubs_rating} out of 5</p>
-    <div class="rating-bar ${barStyle(rev.clubs_rating)}"></div>
+    <p >Accessibility: ${rev.accessibility_avg} out of 5</p>
+    <div class="rating-bar ${barStyle(rev.accessibility_avg)}"></div>
   </div>
 </div>
 `;
@@ -182,11 +148,12 @@
     collegeName = urlParams.get("name");
 
     collegeData = await getRequest("/colleges/" + collegeName, res => res.json());
-    ratingAvgs = await getRequest("/rating-avgs/" + collegeName, res => res.json());
+    ratingAvgs = await getRequest("/resp-rating-avgs/" + collegeName, res => res.json());
     for (const [key, value] of Object.entries(ratingAvgs)) {
       ratingAvgs[key] = round(ratingAvgs[key]);
     }
-    reviews = await getRequest("/all-reviews/" + collegeName, res => res.json());
+    reviews = await getRequest("/all-responses/" + collegeName, res => res.json());
+    if (!reviews) reviews = []; // <-- Add this line
 
     // replace null with "N/A" in individual ratings
     for (let i = 0; i < reviews.length; i++) {
@@ -214,89 +181,34 @@
   id("friendly").textContent = roundPerc(percentData["lgbtq_score"]);
   id("mobility").textContent = roundPerc(percentData["mobility_score"]);
 
-  id("college-name").innerHTML = `<a href ="${data.drsLink}" target="_blank">${collegeName}</a>`;
+  //id("college-name").innerHTML = `<a href ="${data.drsLink}" target="_blank">${collegeName}</a>`;
+  id("college-name").textContent = collegeName;
   // id("review-text").textContent = data.review;
   // id("college-info").classList.remove("hidden");
 
-  let overallInclusivity = qs("#overall-inclusivity .overall-display");
-  overallInclusivity.textContent = data["overallIdentity_avg"];
-  overallInclusivity.classList.remove("poor", "okay", "good");
-  overallInclusivity.classList.add(getColor(data["overallIdentity_avg"]));
+  let overall = qs("#overall .overall-display");
+  overall.textContent = data["overall_avg"];
+  overall.classList.remove("poor", "okay", "good");
+  overall.classList.add(getColor(data["overall_avg"]));
 
 
-  let overallAccessibility = qs("#overall-accessibility .overall-display");
-  overallAccessibility.textContent = data["overallAccess_avg"];
-  overallAccessibility.classList.remove("poor", "okay", "good");
-  overallAccessibility.classList.add(getColor(data["overallAccess_avg"]));
- 
- 
-  let lgbtqRating = qs("#lgbtq-rating .rating-display");
-  lgbtqRating.textContent = data["lgbtq_avg"];
-  lgbtqRating.classList.remove("poor", "okay", "good");
-  lgbtqRating.classList.add(getColor(data["lgbtq_avg"]));
+  let accessibilityRating = qs("#accessibility-rating .rating-display");
+  accessibilityRating.textContent = data["accessibility_avg"];
+  accessibilityRating.classList.remove("poor", "okay", "good");
+  accessibilityRating.classList.add(getColor(data["accessibility_avg"]));
 
 
-  let accommodationRating = qs("#accommodation-rating .rating-display");
-  accommodationRating.textContent = data["rating_avg"];
-  accommodationRating.classList.remove("poor", "okay", "good");
-  accommodationRating.classList.add(getColor(data["rating_avg"]));
+  let safetyRating = qs("#safety-rating .rating-display");
+  safetyRating.textContent = data["safety_avg"];
+  safetyRating.classList.remove("poor", "okay", "good");
+  safetyRating.classList.add(getColor(data["safety_avg"]));
 
 
-  let outdoorRating = qs("#outdoor-accessibility .rating-display");
-  outdoorRating.textContent = data["outside_avg"];
-  outdoorRating.classList.remove("poor", "okay", "good");
-  outdoorRating.classList.add(getColor(data["outside_avg"]));
+  let inclusivityRating = qs("#inclusivity-rating .rating-display");
+  inclusivityRating.textContent = data["inclusivity_avg"];
+  inclusivityRating.classList.remove("poor", "okay", "good");
+  inclusivityRating.classList.add(getColor(data["inclusivity_avg"]));
 
-
-  let indoorRating = qs("#indoor-accessibility .rating-display");
-  indoorRating.textContent = data["inside_avg"];
-  indoorRating.classList.remove("poor", "okay", "good");
-  indoorRating.classList.add(getColor(data["inside_avg"]));
-
-
-  let supportRating = qs("#peer-support .rating-display");
-  supportRating.textContent = data["supportive_avg"]
-  supportRating.classList.remove("poor", "okay", "good");
-  supportRating.classList.add(getColor(data["supportive_avg"]));
-
-
-  let liberalRating = qs("#liberal .rating-display");
-  liberalRating.textContent = data["liberal_avg"];
-  liberalRating.classList.remove("poor", "okay", "good");
-  liberalRating.classList.add(getColor(data["liberal_avg"]));
-
-
-  let culturalRating = qs("#cultural-diversity .rating-display");
-  culturalRating.textContent = data["diversity_avg"];
-  culturalRating.classList.remove("poor", "okay", "good");
-  culturalRating.classList.add(getColor(data["diversity_avg"]));
-
-
-  let religiousRating = qs("#religious-tolerance .rating-display");
-  religiousRating.textContent = data["tolerance_avg"];
-  religiousRating.classList.remove("poor", "okay", "good");
-  religiousRating.classList.add(getColor(data["tolerance_avg"]));
-  console.log(data);
-
-  
-  // inclusiveness of clubs
-  let clubsRating = qs("#club-inclusiveness .rating-display");
-  clubsRating.textContent = data["clubs_avg"];
-  clubsRating.classList.remove("poor", "okay", "good");
-  clubsRating.classList.add(getColor(data["clubs_avg"]));
-
-  // khai & danielle: added 3 new averages;
-  /* difficulty of getting accomodations*/
-  let difficultyRating = qs("#difficulty-rating .rating-display");
-  difficultyRating.textContent = data["difficulty_avg"];
-  difficultyRating.classList.remove("poor", "okay", "good");
-  difficultyRating.classList.add(getColor(data["difficulty_avg"]));
-  // reliability of accomodations
-  let relibilityRating = qs("#reliability-rating .rating-display");
-  relibilityRating.textContent = data["reliability_avg"];
-  relibilityRating.classList.remove("poor", "okay", "good");
-  relibilityRating.classList.add(getColor(data["reliability_avg"]));
-  
 }
 
 

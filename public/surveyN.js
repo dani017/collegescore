@@ -26,14 +26,26 @@ function initSurvey() {
     //Render visable questions
     const visibleQuestions = questions.filter(q => showQuestion(q));
     visibleQuestions.forEach(q => {
-    const elemQ = renderQuestion(q);
-    const question = document.createElement("div");//Question wrapper for styling
-    question.className = "question";
-    question.appendChild(elemQ);
-    surveyContainer.insertBefore(question,submitBtn); //Insert question before submit button
-    });
+  const elemQ = renderQuestion(q);
+  const question = document.createElement("div");//Question wrapper for styling
+  question.className = "question";
+  // If this is a conditional question, hide the wrapper by default
+  if (q.conditional) {
+    question.style.display = "none";
+    elemQ.style.display = "block"; // ensure inner fieldset is block
+    question.id = `${q.id}-wrapper`; // give it an id for toggling
+  }
+  question.appendChild(elemQ);
+  surveyContainer.insertBefore(question, submitBtn);
+});
 
-    stars();
+    // Handle conditional question display
+    setupConditionalQuestions();
+    
+    // Add years validation
+    setupYearsValidation();
+
+    stars();//accessibile stars function
 
     /*Event Listeners*/
     backBtn.addEventListener("click", function(){//close window, return to college page on back
@@ -67,9 +79,15 @@ function initSurvey() {
  * lgbt and poc commented out while on accessability only
  */
 function showQuestion(q/*, responses*/) {
-  // Always show general and screening questions
-  if (/*!q.category ||*/ q.category === "general" || q.category === "identity") return true;
-
+ // Always show general, identity, and attendance questions
+  if (!q.category || q.category === "general" || q.category === "identity" || q.category === "attendance") {
+    // Handle conditional questions
+    if (q.conditional) {
+      // Always render conditional questions so they can be shown/hidden dynamically
+      return true;
+    }
+    return true;
+  }
   // Show LGBTQIA2+ questions only if they identified as such
   //if (q.category === "lgbt" && responses.lgbt_id === "yes") return true;
 
@@ -92,11 +110,12 @@ function renderQuestion(q){
     if (q.type === "written") return writtenRespQ(q.id, q.text);
     if (q.type === "yesno") return ynRespQ(q.id, q.text);
     if (q.type === "rating") return ratingRespQ(q.id, q.text);
+    if (q.type === "years") return yearsRespQ(q.id, q.text); 
 }
 
 
  /**POST form data to database and close survey*/
-  function submitSurvey(surveyContainer, collegeName){
+function submitSurvey(surveyContainer, collegeName){
     let formData = new FormData(surveyContainer);
     let jsonData = {};
     jsonData["college_name"] = collegeName;
@@ -112,10 +131,10 @@ function renderQuestion(q){
     });
     postRequest(`/submit-response/${encodeURIComponent(collegeName)}`, JSON.stringify(jsonData), res => res.text());
     window.open(`/college.html?name=${encodeURIComponent(collegeName)}`); //returns to college page where review was left
-  }
+}
 
   /**Functionality for star ratings */
-  function stars() {
+function stars() {
   const starRatings = document.querySelectorAll(".star-rating");
 
   starRatings.forEach(rating => { //for each rating question
@@ -178,7 +197,72 @@ function renderQuestion(q){
         }
       });
     }
-});
+    });
+}
+
+//Helper functions for conditional questions and validation:
+function setupConditionalQuestions() {
+    const collegeAttendedInputs = document.querySelectorAll('input[name="college_attended"]');
+    const yearsWrapper = document.getElementById('attendance_years-wrapper');
+    const yearsContainer = document.getElementById('attendance_years-container');
+    
+    collegeAttendedInputs.forEach(input => {
+        input.addEventListener('change', function() {
+            if (this.value === 'yes' && this.checked) {
+                yearsWrapper.style.display = 'block';
+                document.getElementById('attendance_years_start').required = true;
+                document.getElementById('attendance_years_end').required = true;
+            } else if (this.value === 'no' && this.checked) {
+                yearsWrapper.style.display = 'none';
+                document.getElementById('attendance_years_start').value = '';
+                document.getElementById('attendance_years_end').value = '';
+                document.getElementById('attendance_years_start').required = false;
+                document.getElementById('attendance_years_end').required = false;
+                document.getElementById('attendance_years_error').style.display = 'none';
+            }
+        });
+    });
+}
+
+function setupYearsValidation() {
+    const startYearInput = document.getElementById('attendance_years_start');
+    const endYearInput = document.getElementById('attendance_years_end');
+    const errorDiv = document.getElementById('attendance_years_error');
+    const currentYear = new Date().getFullYear();
+    const maxYear = currentYear + 4;
+
+    function validateYears() {
+        const startYear = parseInt(startYearInput.value);
+        const endYear = parseInt(endYearInput.value);
+
+        if (startYearInput.required && endYearInput.required) {
+            if (!startYear || !endYear) {
+                errorDiv.textContent = 'Please enter both start and end years';
+                errorDiv.style.display = 'block';
+                return false;
+            }
+
+            if (startYear > endYear) {
+                errorDiv.textContent = 'Start year must be before or equal to end year';
+                errorDiv.style.display = 'block';
+                return false;
+            }
+
+            if (startYear < 1950 || endYear > maxYear) {
+                errorDiv.textContent = `Please enter years between 1950 and ${maxYear}`;
+                errorDiv.style.display = 'block';
+                return false;
+            }
+        }
+
+        errorDiv.style.display = 'none';
+        return true;
+    }
+
+    if (startYearInput && endYearInput) {
+        startYearInput.addEventListener('input', validateYears);
+        endYearInput.addEventListener('input', validateYears);
+    }
 }
 
 
@@ -244,12 +328,58 @@ function ynRespQ(id, questionText){
     return container;
 }
 
+/**HTML for attendance question
+ * @param {String} id for the html element that relates to the DB name
+ * @param {String} questionText 
+ * @returns html for the question with years response options
+*/
+function yearsRespQ(id, questionText){
+    const container = document.createElement("fieldset");
+    container.className = "years-question";
+    container.id = `${id}-container`;
+    container.style.display = "none"; // Initially hidden
+
+    const currentYear = new Date().getFullYear();
+    const maxYear = currentYear + 4;
+
+    container.innerHTML = `
+        <legend>${questionText}</legend>
+        <div class="years-input-group">
+            <div class="input-field">
+                <label for="${id}_start">From Year:</label>
+                <input type="number" name="${id}_start" id="${id}_start" 
+                       min="1950" max="${maxYear}" placeholder="e.g. ${currentYear - 4}">
+            </div>
+            <div class="input-field">
+                <label for="${id}_end">To Year:</label>
+                <input type="number" name="${id}_end" id="${id}_end" 
+                       min="1950" max="${maxYear}" placeholder="e.g. ${maxYear-4}">
+            </div>
+        </div>
+        <div class="error" id="${id}_error" style="display:none; color: #e53e3e; font-size: 0.9em; margin-top: 5px;">
+            Please enter valid years (start year should be before or equal to end year)
+        </div>
+    `;
+    return container;
+}
+
 
 //Survey Questions
 //phase1: only general and accessability questions will be populated 
 let collegeName;
 //all possible survey quesitons
 const questions = [
+    // College Attendance Block (add at the top)
+    {   type: "yesno", 
+        id: "college_attended", 
+        text: "Did you attend this college/university?",
+        category: "attendance"},
+    {   type: "years", 
+        id: "attendance_years", 
+        text: "What years did you attend? (From - To)",
+        category: "attendance",
+        conditional: "college_attended", // Only show if college_attended is "yes"
+        conditionalValue: "yes"},
     //Identity Block
     {   type: "yesno", 
         id:"lgbt_id", 
@@ -261,84 +391,26 @@ const questions = [
         category: "identity"},
     {   type: "yesno", 
         id: "disability_id", 
-        text: "Do you identify as having a disability (visual, auditory, motor, or cognitive)",
+        text: "Have you used campus accessibility services (such as extended test time, note-taking assistance, accessible housing, etc.)?",
         category:"identity"},
     {   type: "yesno", 
         id: "optin", 
-        text: "Would you like your identity to be attached to your response for filtering purposes (e.g., \"POC responses\")?",
+        text: "Show your demographic identities (POC, LGBTQ+, disabled, etc.) with this response? This allows others to filter responses by these categories.",
         category: "identity"},
     {   type: "written", 
         id: "share_id", 
-        text: "If you would like to have your identities included in your review, please list them below",
+        text: "If there any other details about your identity you would like included in your response, please list them below",
         category:"identity"},
+        
     //LGBT Block
-    {   type: "rating", 
-        id: "lgbt_safety", 
-        text: ""
-            + "",
-        category:"lgbt"},
-    {   type: "yesno", 
-        id: "lgbt_harm", 
-        text: "",
-        category:"lgbt"},
-    {   type: "rating", 
-        id: "lgbt_inclusion", 
-        text: ""
-            + "",
-        category:""},
-    {   type: "rating", 
-        id: "lgbt_bias", 
-        text: ""
-            + "" ,
-        category:""},
-    {   type: "rating", 
-        id: "lgbt_peer", 
-        text: ""
-            + "" ,
-        category:""},
-    {   type: "rating", 
-        id: "lgbt_inst", 
-        text: ""
-            + "" ,
-        category:""},
+    
     //POC block
-    {   type: "rating", 
-        id: "poc_safety", 
-        text: ""
-            + "" ,
-        category:""},
-    {   type: "yesno", 
-        id: "poc_harm", 
-        text: "",
-    category:""},
-    {   type: "rating", 
-        id: "poc_inclusion", 
-        text: ""
-            + "" ,
-        category:""},
-    {   type: "rating", 
-        id: "poc_bias", 
-        text: "",
-    category:""},
-    {   type: "rating", 
-        id: "poc_peer", 
-        text: ""
-            + "" ,
-        category:""},
-    {   type: "rating", 
-        id: "poc_inst", 
-       text: ""
-            + "" ,
-        category:""},
+    
     //Disability block
     {   type: "rating", 
         id: "disability_safety", 
         text: "On a scale of 1-5 how safe do you feel on campus and the surrounding area as a person with a disability?"
             + "\n1 being not safe at all, 5 being incredibly safe." ,
-        category:"disability"},
-    {   type: "yesno", 
-        id: "disability_harm", 
-        text: "Have you experienced harassment or assault as a result of your disability identity?",
         category:"disability"},
     {   type: "rating", 
         id: "disability_inclusion", 

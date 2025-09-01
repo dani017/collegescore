@@ -22,6 +22,15 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
 
   // Display the initial webpage
   async function init() {
+    // Show custom alert modal
+    const alertModal = document.getElementById("custom-alert");
+    const closeBtn = document.getElementById("close-alert-btn");
+    alertModal.classList.remove("hidden");
+    closeBtn.focus();
+
+    closeBtn.onclick = () => {
+        alertModal.classList.add("hidden");
+    };
 
     collegesOrig = getCollegesFromDatabase();
     colleges = await getCollegesFromDatabase2();
@@ -30,8 +39,8 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
     console.log(colleges);
     console.log(collegesOrig);
 
-    await displayInitialColleges();
-    setInterval(rotateColleges, 7000);
+    //await displayInitialColleges();
+    //setInterval(rotateColleges, 7000);
     qs("#search-bar input").addEventListener("input", showSuggestions);
     qs("#search-bar input").addEventListener('keypress', function (e) {
       if (e.key === 'Enter') {
@@ -59,21 +68,14 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
     id("selectState").value = "None"; 
     id("search").value = "";
 
-    displayInitialColleges(); 
+    //displayInitialColleges(); 
 
-    let carousel = id("college-carousel");
     let resultsContainer = id("results");
     let statusMessage = id("search-status");
 
     resultsContainer.innerHTML = "";
     statusMessage.textContent = ""; 
 
-    carousel.classList.remove("hidden");
-    carousel.style.opacity = "0";
-    setTimeout(() => {
-        carousel.style.transition = "opacity 2s ease-in";
-        carousel.style.opacity = "1";
-    }, 50);
 }
 
 
@@ -95,85 +97,161 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
   }
 
   // Filter collges to display based on filters selected, state selected or name of the university searched for
-  function filterColleges() {
+  async function filterColleges() {
     let searchQuery = id("search").value.toLowerCase().trim();
     let selectedFilters = Array.from(document.querySelectorAll(".filter-option:checked"))
         .map(cb => cb.value);
     let selectedState = document.getElementById("selectState").value;
 
-    console.log("Search Query:", searchQuery);
+    // If nothing is searched, no filters are checked, and state is "None", clear results/status
+    if (!searchQuery && selectedFilters.length === 0 && selectedState === "None") {
+        clearFilters();
+        return;
+    }
+
+    // Determine if sorting by rating is requested
+    let sortBy = null;
+    let endpoint = null;
+    if (selectedFilters.includes("accessibility")) {
+        sortBy = "access";
+        endpoint = "/top-access";
+    } else if (selectedFilters.includes("safety")) {
+        sortBy = "safety";
+        endpoint = "/top-safety";
+    } else if (selectedFilters.includes("inclusivity")) {
+        sortBy = "inclusion";
+        endpoint = "/top-inclusion";
+    }
+
+    // If a sort filter is checked, fetch from backend and display
+    if (endpoint) {
+        let topColleges = await getRequest(endpoint, res => res.json());
+        topColleges.forEach(row => console.log("Row from backend:", row)); // Add this line
+        // Optionally filter by state or search query
+        if (selectedState !== "None") {
+            topColleges = topColleges.filter(college =>
+                college.location && college.location.trim().toLowerCase() === selectedState.trim().toLowerCase()
+            );
+        }
+        if (searchQuery) {
+            topColleges = topColleges.filter(college =>
+                college.college_name.toLowerCase().includes(searchQuery)
+            );
+        }
+        updateResults(topColleges.map(row => ({
+            name: row.college_name,
+            access_avg: round(row.access_avg),
+            inclusion_avg: round(row.inclusion_avg),
+            safety_avg: round(row.safety_avg),
+            // Add location and accommodations if needed
+            location: row.location || "",
+            //accommodations: row.accommodations ? JSON.parse(row.accommodations) : []
+        })));
+        return;
+    }
+
+    // Remove the sort filters from selectedFilters so they don't act as accommodations filters
+    selectedFilters = selectedFilters.filter(f => !["safety", "inclusivity", "accessibility"].includes(f));
 
     let filteredColleges = colleges.filter(college => {
         let matchesSearch = searchQuery ? college.name.toLowerCase().includes(searchQuery) : true;
         let stateMatches = selectedState === "None" ? true : college.location.trim().toLowerCase() === selectedState.trim().toLowerCase();
         let matchesFilters = selectedFilters.length === 0 || selectedFilters.every(filter => college.accommodations.includes(filter));
-
-        console.log("Search Query:", selectedFilters); 
-        
-        if (!matchesSearch) {
-            console.log(`Filtered out (name mismatch): ${college.name}`);
-        }
-
         return matchesSearch && matchesFilters && stateMatches;
     });
 
-    console.log("Filtered Colleges:", filteredColleges);
     updateResults(filteredColleges);
 }
 
   // Display the colleges that match the filtering
-  function updateResults(filteredColleges) {
+  async function updateResults(filteredColleges) {
     let resultsContainer = id("results");
     let statusMessage = id("search-status");
 
-    id("college-carousel").classList.add("hidden");
     resultsContainer.innerHTML = "";
 
-    // khai: fix bug where clicking filters quickly makes results show everything (even with filters)
     if (filteredColleges.length > 100) {
-      filteredColleges = filteredColleges.slice(0, 100);  // just first 100 results
+        filteredColleges = filteredColleges.slice(0, 100);
     }
 
     if (filteredColleges.length > 0) {
-        filteredColleges.forEach(async college => {
-          let card = document.createElement("div");
-          card.classList.add("college-card2");
+        // Process all colleges in parallel using Promise.all
+        const collegePromises = filteredColleges.map(async (college) => {
+            let card = document.createElement("div");
+            card.classList.add("college-card2");
 
-          // khai: fix bug where clicking filters quickly makes results show everything (even with filters)
-          let ratingAvgs = nameToRating[college.name];
-          if (!ratingAvgs) {
-            nameToRating[college.name] = await getRequest("/rating-avgs/" + college.name, res => res.json());
-            ratingAvgs = nameToRating[college.name];
-            for (const [key, value] of Object.entries(ratingAvgs)) {
-              ratingAvgs[key] = round(ratingAvgs[key]);
+            // Use provided averages if present, otherwise fetch
+            let ratingAvgs;
+            if (
+                college.access_avg !== undefined ||
+                college.inclusion_avg !== undefined ||
+                college.safety_avg !== undefined
+            ) {
+                ratingAvgs = {
+                    access_avg: college.access_avg,
+                    inclusion_avg: college.inclusion_avg,
+                    safety_avg: college.safety_avg
+                };
+            } else {
+                // fallback: fetch if not present
+                let name = college.name || college.college_name;
+                if (!nameToRating[name]) {
+                    console.log("Fetching ratings for:", name);
+                    try {
+                        nameToRating[name] = await getRequest("/access-avgs/" + name, res => res.json());
+                        ratingAvgs = nameToRating[name];
+                        // Round the values
+                        for (const [key, value] of Object.entries(ratingAvgs)) {
+                            if (ratingAvgs[key] !== null && ratingAvgs[key] !== undefined) {
+                                ratingAvgs[key] = round(value);
+                            }
+                        }
+                    } catch (error) {
+                        console.error("Error fetching ratings for", name, ":", error);
+                        // Set default values if fetch fails
+                        ratingAvgs = {
+                            access_avg: null,
+                            inclusion_avg: null,
+                            safety_avg: null
+                        };
+                        nameToRating[name] = ratingAvgs;
+                    }
+                } else {
+                    ratingAvgs = nameToRating[name];
+                }
             }
-          }
-          card.innerHTML = `
-              <h3>${college.name}</h3>
-              <p><strong>Accessibility Rating:</strong> ${ratingAvgs["overallAccess_avg"] ? ratingAvgs["overallAccess_avg"] : "N/A"} out of 5</p>
-              <p><strong>Inclusivity Rating:</strong> ${ratingAvgs["overallIdentity_avg"] ? ratingAvgs["overallIdentity_avg"] : "N/A"} out of 5</p>
-              <p><strong>Location:</strong> ${college.location}</p>
-              <p><strong>Accommodations:</strong> 
-              ${Array.isArray(college.accommodations) && college.accommodations.length > 0 
-                  ? college.accommodations.join(", ") 
-                  : "N/A"}
-            </p>
-          `;
-          resultsContainer.appendChild(card);
-          //card.addEventListener("click", () => { window.location.href = `college.html?name=${encodeURIComponent(college.name)}`;});
-          card.addEventListener("click", () => {
-            window.location.href= 'college.html?name=' + college.name;
-          });
-          card.setAttribute("role", "button");
-          card.setAttribute("tabindex", "0");
-          card.addEventListener("keypress", (event) => {
-            if (event.key === "Enter") {
-              window.location.href = 'college.html?name=' + college.name;
-  }
-});
-      });
-        statusMessage.textContent = `${filteredColleges.length} results found.`;
 
+            card.innerHTML = `
+                <h3>${college.name || college.college_name}</h3>
+                <p><strong>Accessibility Rating:</strong> ${ratingAvgs["access_avg"] != null ? ratingAvgs["access_avg"] : "N/A"} out of 5</p>
+                <p><strong>Inclusivity Rating:</strong> ${ratingAvgs["inclusion_avg"] != null ? ratingAvgs["inclusion_avg"] : "N/A"} out of 5</p>
+                <p><strong>Safety Rating:</strong> ${ratingAvgs["safety_avg"] != null ? ratingAvgs["safety_avg"] : "N/A"} out of 5</p>
+                <p><strong>Location:</strong> ${college.location || ""}</p>
+            `;
+            
+            card.addEventListener("click", () => {
+                window.location.href = 'college.html?name=' + encodeURIComponent(college.name || college.college_name);
+            });
+            card.setAttribute("role", "button");
+            card.setAttribute("tabindex", "0");
+            card.addEventListener("keypress", (event) => {
+                if (event.key === "Enter") {
+                    window.location.href = 'college.html?name=' + encodeURIComponent(college.name || college.college_name);
+                }
+            });
+
+            return card;
+        });
+
+        // Wait for all cards to be processed
+        const cards = await Promise.all(collegePromises);
+        
+        // Append all cards to the results container
+        cards.forEach(card => {
+            resultsContainer.appendChild(card);
+        });
+
+        statusMessage.textContent = `${filteredColleges.length} results found.`;
     } else {
         resultsContainer.innerHTML = NO_COLLEGES_FOUND;
         statusMessage.textContent = "No results found.";
@@ -181,104 +259,70 @@ const NO_COLLEGES_FOUND = "<li>No colleges match your criteria.</li>";
 
     resultsContainer.classList.remove("hidden");
     statusMessage.classList.add("hidden");
-  }
-
-
-  // Display the initial cplleges on the carousel (random)
-  // function displayInitialColleges() {
-  //   id("left-card").innerHTML = generateCardHTML(colleges[currentIndexes[0]]);
-  //   id("center-card").innerHTML = generateCardHTML(colleges[currentIndexes[1]]);
-  //   id("right-card").innerHTML = generateCardHTML(colleges[currentIndexes[2]]);
-  // }
-
-
-  // Display the initial cplleges on the carousel, making sure it's the three universities we have data for
-  async function displayInitialColleges() {
-    let collegesWithData = colleges.filter(college => 
-      ["University of Washington", "Stanford University", "Yale University"].includes(college.name)
-  );
-
-    if (collegesWithData.length === 3) {
-        currentIndexes = [0, 1, 2]; 
-    }
-
-    id("left-card").innerHTML = await generateCardHTML(collegesWithData[0]);
-    id("center-card").innerHTML = await generateCardHTML(collegesWithData[1]);
-    id("right-card").innerHTML = await generateCardHTML(collegesWithData[2]);
-
-    const urlParams = new URLSearchParams(window.location.search);
-    let collegeName = urlParams.get("name");
-    if (collegeName) {
-      qs("#search-bar input").value = collegeName;
-      filterColleges();
-    }
 }
 
 
 
-  // Make the carousel rotate
-  function rotateColleges() {
-    let collegesWithData = colleges.filter(college => 
-      ["University of Washington", "Stanford University", "Yale University"].includes(college.name)
-  );
-    if (collegesWithData.length < 3) return;
-    let leftCard = id("left-card");
-    let centerCard = id("center-card");
-    let rightCard = id("right-card");
+  // Display the initial cplleges on the carousel, making sure it's the three universities we have data for
+  async function displayInitialColleges() {
+    // Filter colleges to only those with "university" in the name (case-insensitive)
+    let universityColleges = colleges.filter(college =>
+      college.name.toLowerCase().includes("university")
+    );
 
-    leftCard.style.transition = "transform 2s ease-in-out";
-    centerCard.style.transition = "transform 2s ease-in-out";
-    rightCard.style.transition = "transform 2s ease-in-out";
+    // Pick 5 random from the filtered list
+    let shuffled = universityColleges.slice().sort(() => 0.5 - Math.random());
+    let randomColleges = shuffled.slice(0, 5);
 
-    leftCard.style.transform = "translateX(100%)";
-    centerCard.style.transform = "translateX(100%)";
-    rightCard.style.transform = "translateX(100%)";
+    let resultsContainer = id("results");
+    resultsContainer.innerHTML = "";
 
-    setTimeout(async () => {
-      currentIndexes = currentIndexes.map(i => (i + 1) % collegesWithData.length);
+    for (let college of randomColleges) {
+      let card = document.createElement("div");
+      card.classList.add("college-card2");
 
-      leftCard.style.transition = "none";
-      centerCard.style.transition = "none";
-      rightCard.style.transition = "none";
+      let ratingAvgs = nameToRating[college.name];
+      if (!ratingAvgs) {
+        nameToRating[college.name] = await getRequest("/rating-avgs/" + college.name, res => res.json());
+        ratingAvgs = nameToRating[college.name];
+        for (const [key, value] of Object.entries(ratingAvgs)) {
+          ratingAvgs[key] = round(ratingAvgs[key]);
+        }
+      }
+      card.innerHTML = `
+        <h3>${college.name}</h3>
+        <p><strong>Accessibility Rating:</strong> ${ratingAvgs["overallAccess_avg"] ? ratingAvgs["overallAccess_avg"] : "N/A"} out of 5</p>
+        <p><strong>Inclusivity Rating:</strong> ${ratingAvgs["overallIdentity_avg"] ? ratingAvgs["overallIdentity_avg"] : "N/A"} out of 5</p>
+        <p><strong>Location:</strong> ${college.location}</p>
+        <p><strong>Accommodations:</strong> 
+          ${Array.isArray(college.accommodations) && college.accommodations.length > 0 
+              ? college.accommodations.join(", ") 
+              : "N/A"}
+        </p>
+      `;
+      resultsContainer.appendChild(card);
+      card.addEventListener("click", () => {
+        window.location.href = 'college.html?name=' + college.name;
+      });
+      card.setAttribute("role", "button");
+      card.setAttribute("tabindex", "0");
+      card.addEventListener("keypress", (event) => {
+        if (event.key === "Enter") {
+          window.location.href = 'college.html?name=' + college.name;
+        }
+      });
+    }
+    id("search-status").textContent = `${randomColleges.length} random universities shown.`;
+}
 
-      leftCard.style.transform = "translateX(0%)";
-      centerCard.style.transform = "translateX(0%)";
-      rightCard.style.transform = "translateX(0%)";
-
-      rightCard.innerHTML = centerCard.innerHTML;
-      centerCard.innerHTML = leftCard.innerHTML;
-
-      leftCard.innerHTML = await generateCardHTML(collegesWithData[currentIndexes[0]]);
-
-      setTimeout(() => {
-        leftCard.style.transition = "transform 2s ease-in-out";
-        centerCard.style.transition = "transform 2s ease-in-out";
-        rightCard.style.transition = "transform 2s ease-in-out";
-      }, 50);
-    }, 1000);
-  }
 
   // round to exactly 1 decimal place
   // if 0 return "N/A"
   function round(num) {
+    if (num === null || num === undefined || isNaN(num)) return null;
     num = (Math.round(num * 100) / 100).toFixed(1);
-    return num == 0 ? "N/A" : num;
-  }
-
-  // Create an HTML card for the college on carousel
-  async function generateCardHTML(college) {
-    let ratingAvgs = await getRequest("/rating-avgs/" + college.name, res => res.json());
-    for (const [key, value] of Object.entries(ratingAvgs)) {
-      ratingAvgs[key] = round(ratingAvgs[key]);
-    }
-    return `<div onClick="window.location.href = 'college.html?name=${college.name}'">
-              <h3>${college.name}</h3>
-              <p><strong>Accessibility:</strong> ${ratingAvgs["overallAccess_avg"] ? ratingAvgs["overallAccess_avg"] : "N/A"} out of 5</p>
-              <p><strong>Inclusivity:</strong> ${ratingAvgs["overallIdentity_avg"] ? ratingAvgs["overallIdentity_avg"] : "N/A"} out of 5</p>
-              <p><strong>Location:</strong> ${college.location}</p>
-            </div>
-            `;
-  }
+    return Number(num);
+}
 
   // TO DO: get the full list pf colleges on the database
   function getCollegesFromDatabase() {
