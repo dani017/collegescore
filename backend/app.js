@@ -2,36 +2,40 @@
  * College Inclusiveness Search Team
  * February 2025
  * Handles routes and server
+ * 
+ * Sections:
+ * 1. Middleware & Setup
+ * 2. College Info & Survey Routes (Current)
+ * 3. Stats & Demographics (Current)
+ * 4. Helpers (Current)
+ * 5. Legacy/Winter 24-25 Routes (OLD)
  */
-
 
 "use strict";
 
 const express = require("express");
 const app = express();
-
+const path = require("path");
 const sqlite3 = require('sqlite3');
 const sqlite = require('sqlite');
-
 const multer = require("multer");
 
 const USER_ERROR = 400;
 const SERVER_ERROR = 500;
+const SERVER_ERROR_MSG = "Uh oh! Something went wrong on the server.";
 
-const SERVER_ERROR_MSG = "Uh oh! Something went wrong on the server."
+// -------------------- 1. Middleware & Static Files --------------------
+app.use(express.urlencoded({extended: true}));
+app.use(express.json());
+app.use(multer().none());
+app.use(express.static(path.join(__dirname, '../public')));
 
-/*-----------------New for Summer on Use */
-// for application/x-www-form-urlencoded
-app.use(express.urlencoded({extended: true})); // built-in middleware
-// for application/json
-app.use(express.json()); // built-in middleware
-// for multipart/form-data (required with FormData)
-app.use(multer().none()); // requires the "multer" module
+// -------------------- 2. College Info & Survey Routes (Current) --------------------
 
-
-/*****GETs*****/
-/*Search Page*/
-//Returns an array of all college information, ordered alphabetically by name (capstone code)
+/**
+ * GET /colleges
+ * Returns all colleges, sorted and prioritized by name.
+ */
 app.get('/colleges', async function(req, res) {
   try {
     let query = `
@@ -52,8 +56,10 @@ app.get('/colleges', async function(req, res) {
   }
 });
 
-
-//Returns all information about one college (capstone code)
+/**
+ * GET /colleges/:name
+ * Returns details for a specific college.
+ */
 app.get('/colleges/:name', async function(req, res) {
   try {
     let name = req.params["name"];
@@ -66,7 +72,10 @@ app.get('/colleges/:name', async function(req, res) {
   }
 });
 
-//Returns an array of all names of colleges, ordered alphabetically (capstone code)
+/**
+ * GET /college-names
+ * Returns a list of all college names.
+ */
 app.get('/college-names', async function(req, res) {
   try {
     let query = "SELECT name FROM Colleges ORDER BY name";
@@ -82,7 +91,10 @@ app.get('/college-names', async function(req, res) {
   }
 });
 
-//Finds all colleges that match or are similar to the search (capstone code)
+/**
+ * GET /search/:search
+ * Performs a fuzzy search for colleges by name.
+ */
 app.get('/search/:search', async function(req, res) {
   try {
     let search = req.params["search"];
@@ -102,8 +114,10 @@ app.get('/search/:search', async function(req, res) {
   }
 });
 
-/*College Page*/
-//Returns all written responses for a University 
+/**
+ * GET /written-reviews/:college
+ * Returns all written reviews for a given college.
+ */
 app.get('/written-reviews/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -125,7 +139,10 @@ app.get('/written-reviews/:college', async function(req, res) {
   }
 });
 
-//Returns all the averaged accessability ratings from Responses table for a given university
+/**
+ * GET /access-avgs/:college
+ * Returns average accessibility, inclusion, and safety ratings for a college.
+ */
 app.get('/access-avgs/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -142,7 +159,10 @@ app.get('/access-avgs/:college', async function(req, res) {
   }
 });
 
-// Top N schools by highest accessibility rating
+/**
+ * GET /top-access
+ * Returns top colleges by accessibility average.
+ */
 app.get('/top-access', async function(req, res) {
   try {
     let query = `
@@ -163,8 +183,10 @@ app.get('/top-access', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-// Top N schools by highest inclusion rating
+/**
+ * GET /top-inclusion
+ * Returns top colleges by inclusion average.
+ */
 app.get('/top-inclusion', async function(req, res) {
   try {
     let query = `
@@ -185,8 +207,10 @@ app.get('/top-inclusion', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-// Top N schools by highest accessibility rating
+/**
+ * GET /top-safety
+ * Returns top colleges by safety average.
+ */
 app.get('/top-safety', async function(req, res) {
   try {
     let query = `
@@ -208,36 +232,10 @@ app.get('/top-safety', async function(req, res) {
   }
 });
 
-
-
-//Return demographics 
-//Do not start using this data until a college has over 50 responses, 
-//on college page if this information is null return a message of "We need more reviews before displaying this information!"
-app.get('/dem/:college', async function(req, res){
-  try{
-    let college = req.params["college"];
-    let query =`
-                SELECT AVG(lgbtq_id = 'Yes')*100  AS lgbtq_perc,
-                AVG(poc_id = 'Yes')*100  AS poc_perc,
-                AVG(disability_id = 'Yes')*100  AS disability_perc
-                FROM Responses WHERE college_name = ?
-                GROUP BY college_name = ?
-                HAVING COUNT(*) > 50
-              `;
-    let rows = await runSQLQuery(db => db.get(query,college));
-    res.json(rows);
-  }catch (err){
-    res.status(SERVER_ERROR).type("text");
-    res.send(SERVER_ERROR_MSG + ": " + err);
-  }
-
-
-});
-
-
-/*****POSTs*****/
-/*Survey */
-//submit response to the Response table *summer 25 version
+/**
+ * POST /submit-response/:college
+ * Submits a new survey response for a college.
+ */
 app.post('/submit-response/:college', async function(req, res){
   try{
     console.log("Recived survey data: ", req.body);
@@ -335,7 +333,10 @@ app.post('/submit-response/:college', async function(req, res){
   }
 });
 
-//Returns all survey responses for a University (capstone code)
+/**
+ * GET /all-responses/:college
+ * Returns all individual responses for a college, including calculated averages.
+ */
 app.get('/all-responses/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -368,8 +369,10 @@ app.get('/all-responses/:college', async function(req, res) {
   }
 });
 
-
-//Returns all the averaged ratings from Reviews table for a given university (capstone code)
+/**
+ * GET /resp-rating-avgs/:college
+ * Returns overall average ratings for a college.
+ */
 app.get('/resp-rating-avgs/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -392,9 +395,140 @@ app.get('/resp-rating-avgs/:college', async function(req, res) {
   }
 });
 
-/*----------------------------OLD FROM Winter 24/25, Not using------------------------------------ */
+// -------------------- 3. Stats & Demographics (Current) --------------------
 
-//Returns all survey responses for a University (capstone code)
+/**
+ * GET /dem/:college
+ * Returns demographic data for a college if there are more than 50 responses.
+ */
+app.get('/dem/:college', async function(req, res){
+  try{
+    let college = req.params["college"];
+    let query =`
+                SELECT AVG(lgbtq_id = 'Yes')*100  AS lgbtq_perc,
+                AVG(poc_id = 'Yes')*100  AS poc_perc,
+                AVG(disability_id = 'Yes')*100  AS disability_perc
+                FROM Responses WHERE college_name = ?
+                GROUP BY college_name = ?
+                HAVING COUNT(*) > 50
+              `;
+    let rows = await runSQLQuery(db => db.get(query,college));
+    res.json(rows);
+  }catch (err){
+    res.status(SERVER_ERROR).type("text");
+    res.send(SERVER_ERROR_MSG + ": " + err);
+  }
+
+
+});
+
+// -------------------- 4. Helpers (Current) --------------------
+
+/**
+ * Runs a SQL query using a provided database function.
+ */
+async function runSQLQuery(dbFunc) {
+  try {
+    let db = await getDBConnection();
+    let res = await dbFunc(db);
+    await db.close();
+    return res;
+  } catch (err) {
+    throw err;
+  }
+}
+
+/**
+ * Opens a connection to the SQLite database.
+ */
+async function getDBConnection() {
+  const db = await sqlite.open({
+    filename: 'colleges.db',
+    driver: sqlite3.Database
+  });
+  return db;
+}
+
+/**
+ * Checks if two strings are similar based on a threshold.
+ */
+function areSimilar(str1, str2, threshold = 0.4) {
+  // Handle null, undefined, or empty inputs
+  if (!str1 || !str2) {
+      return str1 === str2;
+  }
+
+  // First try exact match (case-insensitive)
+  if (str1.toLowerCase() === str2.toLowerCase()) {
+      return true;
+  }
+
+  // Then check if each string exists in the other
+  if (str1.toLowerCase().includes(str2.toLowerCase()) ||
+      str2.toLowerCase().includes(str1.toLowerCase())) {
+      return true;
+  }
+
+
+  // If not exact match, try fuzzy matching
+  return getFuzzySimilarity(str1, str2) >= threshold;
+}
+
+/**
+ * Calculates fuzzy similarity between two strings.
+ */
+function getFuzzySimilarity(str1, str2) {
+  const s1 = str1.toLowerCase();
+  const s2 = str2.toLowerCase();
+
+  // Calculate Levenshtein distance
+  const distance = levenshteinDistance(s1, s2);
+
+  // Convert distance to similarity score
+  const maxLength = Math.max(s1.length, s2.length);
+  const similarity = 1 - (distance / maxLength);
+
+  return similarity;
+}
+
+/**
+ * Calculates the Levenshtein distance between two strings.
+ */
+function levenshteinDistance(str1, str2) {
+  const matrix = Array(str2.length + 1).fill(null)
+      .map(() => Array(str1.length + 1).fill(null));
+
+  // Fill first row and column
+  for (let i = 0; i <= str1.length; i++) {
+      matrix[0][i] = i;
+  }
+  for (let j = 0; j <= str2.length; j++) {
+      matrix[j][0] = j;
+  }
+
+  // Fill rest of the matrix
+  for (let j = 1; j <= str2.length; j++) {
+    for (let i = 1; i <= str1.length; i++) {
+      const substitutionCost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1, // deletion
+          matrix[j - 1][i] + 1, // insertion
+          matrix[j - 1][i - 1] + substitutionCost // substitution
+      );
+    }
+  }
+
+  return matrix[str2.length][str1.length];
+}
+
+// -------------------- 5. Legacy/Winter 24-25 Routes (OLD) --------------------
+// These are not used in the current version, but kept for reference/migration.
+// TODO: Remove after Supabase migration if not needed.
+
+/**
+ * GET /all-reviews/:college
+ * Returns all reviews for a college (legacy).
+ */
 app.get('/all-reviews/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -412,9 +546,10 @@ app.get('/all-reviews/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-
-//Returns all the averaged ratings from Reviews table for a given university (capstone code)
+/**
+ * GET /rating-avgs/:college
+ * Returns average ratings for a college (legacy).
+ */
 app.get('/rating-avgs/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -439,8 +574,10 @@ app.get('/rating-avgs/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//Return Y/N stats for a given college (capstone code)
+/**
+ * GET /stats/:college
+ * Returns statistics for a college (legacy).
+ */
 app.get('/stats/:college', async function(req, res){
   try{
     let college = req.params["college"];
@@ -458,10 +595,10 @@ app.get('/stats/:college', async function(req, res){
 
 
 });
-
-
-
-//Adds a survey response to the Reviews table *winter 24-25 version (capstone code)
+/**
+ * POST /submit-survey/:college
+ * Submits a survey for a college (legacy).
+ */
 app.post('/submit-survey/:college', async function(req, res){
   try{
     console.log("Recieved survey data: ", req.body);
@@ -544,9 +681,7 @@ app.post('/submit-survey/:college', async function(req, res){
 
 });
 
-
-/*below are the gets for individual avgs, delete?*/
-// returns the overall/average lgbtq+ safety rating for a given university (capstone code)
+//// Individual averages (legacy, consider removing)
 app.get('/lgbtq-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -563,8 +698,6 @@ app.get('/lgbtq-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average accommodation difficulty rating for a given university
 app.get('/difficulty-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -581,8 +714,6 @@ app.get('/difficulty-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average reliability rating for a given university
 app.get('/reliability-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -599,8 +730,6 @@ app.get('/reliability-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average accomodations-rating for a given university
 app.get('/accommodation-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -617,8 +746,6 @@ app.get('/accommodation-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average outside rating for a given university
 app.get('/outside-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -635,8 +762,6 @@ app.get('/outside-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average inside accessibility for a given university
 app.get('/inside-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -653,8 +778,6 @@ app.get('/inside-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average liberal rating for a given university
 app.get('/liberal-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -671,8 +794,6 @@ app.get('/liberal-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average toelerance rating for a given univerity 
 app.get('/tolerance-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -689,8 +810,6 @@ app.get('/tolerance-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get average diversity-rating for a given university
 app.get('/diversity-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -707,8 +826,6 @@ app.get('/diversity-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average supportive rating for a given university
 app.get('/supportive-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -725,8 +842,6 @@ app.get('/supportive-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average clubs rating for a given university
 app.get('/clubs-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -743,8 +858,6 @@ app.get('/clubs-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average overallAccess rating for a given university 
 app.get('/overallAccess-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -761,8 +874,6 @@ app.get('/overallAccess-avg/:college', async function(req, res) {
     res.send(SERVER_ERROR_MSG + ": " + err);
   }
 });
-
-//get overall/average overallIdentity rating for a given university 
 app.get('/overallIdentity-avg/:college', async function(req, res) {
   try {
     let college = req.params["college"];
@@ -780,10 +891,7 @@ app.get('/overallIdentity-avg/:college', async function(req, res) {
   }
 });
 
-
-/** EXAMPLE GET/POST requests belows, NOT for our use!! */
-
-// get all yip data, or yip data matching a particular search
+//// Example Yip endpoints (not for production)
 app.get('/yipper/yips', async function(req, res) {
   try {
     let search = req.query["search"];
@@ -805,8 +913,6 @@ app.get('/yipper/yips', async function(req, res) {
     res.send(SERVER_ERROR_MSG);
   }
 });
-
-// update likes of a yip
 app.post('/yipper/likes', async function(req, res) {
   let id = req.body["id"];
   if (id) {
@@ -833,128 +939,7 @@ app.post('/yipper/likes', async function(req, res) {
   }
 });
 
-/*   OTHER HELPERS   */
-
-/**
- * Runs a SQL query based on passed-in function dbFunc
- * @param {function} dbFunc - function to call on db, must have param db
- * @returns {object} result of calling dbFunc(db);
- * @throws error if error is caught
- */
-async function runSQLQuery(dbFunc) {
-  try {
-    let db = await getDBConnection();
-    let res = await dbFunc(db);
-    await db.close();
-    return res;
-  } catch (err) {
-    throw err;
-  }
-}
-
-/*   SOME HELPER FUNCTIONS   */
-
-/**
- * Establishes a database connection to a database and returns the database object.
- * Any errors that occur during connection should be caught in the function
- * that calls this one.
- * @returns {Object} - The database object for the connection.
- */
-async function getDBConnection() {
-  const db = await sqlite.open({
-    filename: 'colleges.db',
-    driver: sqlite3.Database
-  });
-  return db;
-}
-
-/**
- * AI-generated helper function
- * Calculates similarity between two strings using exact and fuzzy matching
- * @param {string} str1 - First string to compare
- * @param {string} str2 - Second string to compare
- * @param {number} [threshold=0.8] - Similarity threshold (0 to 1) for fuzzy matching
- * @returns {boolean} - True if strings are similar, false otherwise
- */
-function areSimilar(str1, str2, threshold = 0.4) {
-  // Handle null, undefined, or empty inputs
-  if (!str1 || !str2) {
-      return str1 === str2;
-  }
-
-  // First try exact match (case-insensitive)
-  if (str1.toLowerCase() === str2.toLowerCase()) {
-      return true;
-  }
-
-  // Then check if each string exists in the other
-  if (str1.toLowerCase().includes(str2.toLowerCase()) ||
-      str2.toLowerCase().includes(str1.toLowerCase())) {
-      return true;
-  }
-
-
-  // If not exact match, try fuzzy matching
-  return getFuzzySimilarity(str1, str2) >= threshold;
-}
-
-/**
- * AI-generated helper function
- * Calculates fuzzy similarity score between two strings
- * @param {string} str1 - First string
- * @param {string} str2 - Second string
- * @returns {number} - Similarity score between 0 and 1
- */
-function getFuzzySimilarity(str1, str2) {
-  const s1 = str1.toLowerCase();
-  const s2 = str2.toLowerCase();
-
-  // Calculate Levenshtein distance
-  const distance = levenshteinDistance(s1, s2);
-
-  // Convert distance to similarity score
-  const maxLength = Math.max(s1.length, s2.length);
-  const similarity = 1 - (distance / maxLength);
-
-  return similarity;
-}
-
-/**
- * AI-generated helper function
- * Calculates the Levenshtein distance between two strings
- * @param {string} str1 - First string
- * @param {string} str2 - Second string
- * @returns {number} - The minimum number of single-character edits needed
- */
-function levenshteinDistance(str1, str2) {
-  const matrix = Array(str2.length + 1).fill(null)
-      .map(() => Array(str1.length + 1).fill(null));
-
-  // Fill first row and column
-  for (let i = 0; i <= str1.length; i++) {
-      matrix[0][i] = i;
-  }
-  for (let j = 0; j <= str2.length; j++) {
-      matrix[j][0] = j;
-  }
-
-  // Fill rest of the matrix
-  for (let j = 1; j <= str2.length; j++) {
-    for (let i = 1; i <= str1.length; i++) {
-      const substitutionCost = str1[i - 1] === str2[j - 1] ? 0 : 1;
-      matrix[j][i] = Math.min(
-          matrix[j][i - 1] + 1, // deletion
-          matrix[j - 1][i] + 1, // insertion
-          matrix[j - 1][i - 1] + substitutionCost // substitution
-      );
-    }
-  }
-
-  return matrix[str2.length][str1.length];
-}
-
-// serve the main page under public
-app.use(express.static('public'));
+// -------------------- Server Listen --------------------
 const DEFAULT_PORT = 8000;
 const PORT = process.env.PORT || DEFAULT_PORT;
 app.listen(PORT);
